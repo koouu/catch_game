@@ -2,8 +2,136 @@ import copy
 import cv2
 import numpy as np
 import mediapipe as mp
-
+import random
 from PIL import Image
+import math
+
+koro=cv2.imread('images/koro1.jpg')
+koro2 = cv2.resize(koro, dsize=(200,200))
+object_size=120
+
+rock=cv2.imread('images/rock1.png')
+rock=cv2.resize(rock, dsize=(object_size,object_size))
+
+paper=cv2.imread('images/paper1.png')
+paper=cv2.resize(paper, dsize=(object_size,object_size))
+
+item_pos=[(100,100),(200,800),(400,400),(600,100),(400,1000)]
+item_size=100
+ball=cv2.imread('images/ball.png')
+ball=cv2.resize(ball, dsize=(item_size,item_size))
+
+global score
+
+Hands = mp.solutions.hands
+Draw = mp.solutions.drawing_utils
+
+def putSprite_mask(back, front4, pos):
+    y, x = pos
+    fh, fw = front4.shape[:2]
+    bh, bw = back.shape[:2]
+    x1, y1 = max(x, 0), max(y, 0)
+    x2, y2 = min(x+fw, bw), min(y+fh, bh)
+    if not ((-fw < x < bw) and (-fh < y < bh)) :
+        return back
+    front3 = front4[:, :, :3]
+    front_roi = front3[y1-y:y2-y, x1-x:x2-x]
+    roi = back[y1:y2, x1:x2]
+    tmp = np.where(front_roi==(0,0,0), roi, front_roi)
+    back[y1:y2, x1:x2] = tmp
+    return back
+
+class HandDetector:
+    def __init__(self, max_num_hands=12, min_detection_confidence=0.5, min_tracking_confidence=0.5):
+        self.hands = Hands.Hands(max_num_hands=max_num_hands, min_detection_confidence=min_detection_confidence,
+                                   min_tracking_confidence=min_tracking_confidence)
+    
+    def findHandLandMarks(self, image, handNumber=0, draw=False):
+        originalImage = image
+        show_image=originalImage
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # mediapipe needs RGB
+        results = self.hands.process(image)
+        
+        image
+        back=cv2.imread('images/back.png')
+        back=cv2.resize(back, dsize=(1280,720))
+        #kata
+        #gameimg=copy.deepcopy(back)
+        
+        
+        global score
+        gameimg=back
+        for pos in item_pos:
+            putSprite_mask(gameimg,ball,pos)
+            #gameimg[pos[0]:pos[0]+item_size,pos[1]:pos[1]+item_size]=ball
+        if results.multi_handedness:
+            label = results.multi_handedness[handNumber].classification[0].label  # label gives if hand is left or right
+            #account for inversion in cam
+            if label == "Left":
+                label = "Right"
+            elif label == "Right":
+                label = "Left"
+        if results.multi_hand_landmarks:
+            n=0
+            
+            for hand in results.multi_hand_landmarks:  # returns None if hand is not found
+                #hand = results.multi_hand_landmarks[handNumber] #results.multi_hand_landmarks returns landMarks for all the hands
+                landMarkList = []
+                for id, landMark in enumerate(hand.landmark):
+                    # landMark holds x,y,z ratios of single landmark
+                    imgH, imgW, imgC = originalImage.shape  # height, width, channel for image
+                    
+                    xPos, yPos = int(landMark.x * imgW), int(landMark.y * imgH)
+                    landMarkList.append([id, xPos, yPos, label])
+
+                if draw:
+                    Draw.draw_landmarks(originalImage, hand, Hands.HAND_CONNECTIONS)
+                #print('Handedness:', results.multi_handedness)
+                count=0
+                x=0
+                y=0
+                if(len(landMarkList) != 0):
+                    # handLandmarks[point of 21 points][x or y] locates finger positions.
+                    # see details: https://google.github.io/mediapipe/solutions/hands
+                    # handLandmarks[4][1] 4->Thumb_tip 1->x-axis
+                    # handLandmarks[8][2] 8->Index_finger_tip 2->y-axis
+
+                    if landMarkList[4][1]+50 < landMarkList[5][1]:       #Thumb finger
+                        count = count+1
+                    if landMarkList[7][2] < landMarkList[5][2]:       #Index finger
+                        count = count+1
+                    if landMarkList[11][2] < landMarkList[9][2]:     #Middle finger
+                        count = count+1
+                    if landMarkList[15][2] < landMarkList[13][2]:     #Ring finger
+                        count = count+1
+                    if landMarkList[19][2] < landMarkList[17][2]:     #Little finger
+                        count = count+1
+                    x=landMarkList[4][1]
+                    y=landMarkList[4][2]
+                    #cv2.putText(originalImage, str(landMarkList[11][2]), (landMarkList[11][1] , landMarkList[11][2] ), cv2.FONT_HERSHEY_SIMPLEX, 5, (255, 0, 0), 25)
+                    #cv2.putText(originalImage, str(landMarkList[9][2]), (landMarkList[9][1], landMarkList[9][2]), cv2.FONT_HERSHEY_SIMPLEX, 5, (255, 0, 255), 25)
+                    #print(count)
+                cv2.putText(show_image, str(count), (45, 275+n), cv2.FONT_HERSHEY_SIMPLEX, 5, (255, 0, 0), 25)
+                n=n+50
+                landmark_x=x-100
+                landmark_y=y-100
+                if count > 3:
+                    putSprite_mask(gameimg,paper,(landmark_y,landmark_x))
+                    #gameimg[max(landmark_y,0):max(landmark_y,0)+min(gameimg.shape[0]-landmark_y,object_size),max(landmark_x,0):max(landmark_x,0)+min(gameimg.shape[1]-landmark_x,object_size)]=paper[:min(gameimg.shape[0]-landmark_y,object_size),:min(gameimg.shape[1]-landmark_x,object_size)]            #image[landmark_x]
+                else :
+                    putSprite_mask(gameimg,rock,(landmark_y,landmark_x))
+                    #gameimg[max(landmark_y,0):max(landmark_y,0)+min(gameimg.shape[0]-landmark_y,object_size),max(landmark_x,0):max(landmark_x,0)+min(gameimg.shape[1]-landmark_x,object_size)]=rock[:min(gameimg.shape[0]-landmark_y,object_size),:min(gameimg.shape[1]-landmark_x,object_size)]            #image[landmark_x]
+                    i=0
+                    for pos in item_pos:
+                        if pos[1]<landmark_x+100 and pos[1]+item_size>landmark_x and pos[0]<landmark_y+100 and pos[0]+item_size>landmark_y:
+                            
+                            score=score+100
+                            item_pos[i]=(random.randint(0,600),random.randint(0,1160))
+                        i=i+1
+                
+                #cv2.putText(show_image, "x="+str(x), (25, 75), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 5)
+                #cv2.putText(show_image, "y="+str(y), (25, 175), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 5)
+        return gameimg
 
 
 
@@ -35,10 +163,16 @@ def draw_landmarks(
     image_width, image_height = image.shape[1], image.shape[0]
 
     landmark_point = []
-    
+    back=cv2.imread('images/back.png')
+    back=cv2.resize(back, dsize=(1280,720))
     #kata
+    #gameimg=copy.deepcopy(back)
     
     
+    global score
+    gameimg=back
+    for pos in item_pos:
+        gameimg[pos[0]:pos[0]+item_size,pos[1]:pos[1]+item_size]=ball
     for index, landmark in enumerate(landmarks.landmark):
         landmark_x = min(int(landmark.x * image_width), image_width - 1)
         landmark_y = min(int(landmark.y * image_height), image_height - 1)
@@ -48,75 +182,33 @@ def draw_landmarks(
         if landmark.visibility < visibility_th:
             continue
 
-        if index == 0:  # 鼻
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 1:  # 右目：目頭
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 2:  # 右目：瞳
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 3:  # 右目：目尻
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 4:  # 左目：目頭
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 5:  # 左目：瞳
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 6:  # 左目：目尻
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 7:  # 右耳
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 8:  # 左耳
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 9:  # 口：左端
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 10:  # 口：左端
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 11:  # 右肩
-            rite_s=landmark_y
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 12:  # 左肩
-            left_s=landmark_y
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 13:  # 右肘
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 14:  # 左肘
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 15:  # 右手首
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 16:  # 左手首
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 17:  # 右手1(外側端)
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 18:  # 左手1(外側端)
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
+        
         if index == 19:  # 右手2(先端)
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 20:  # 左手2(先端)
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 21:  # 右手3(内側端)
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 22:  # 左手3(内側端)
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 23:  # 腰(右側)
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 24:  # 腰(左側)
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 25:  # 右ひざ
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 26:  # 左ひざ
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 27:  # 右足首
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 28:  # 左足首
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 29:  # 右かかと
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 30:  # 左かかと
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 31:  # 右つま先
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
-        if index == 32:  # 左つま先
-            cv2.circle(image, (landmark_x, landmark_y), 5, (0, 255, 0), 2)
+            cv2.circle(image, (landmark_x, landmark_y), 30, (0, 255, 0), 2)
+            landmark_x=landmark_x-100
+            landmark_y=landmark_y-100
+            gameimg[max(landmark_y,0):max(landmark_y,0)+min(gameimg.shape[0]-landmark_y,200),max(landmark_x,0):max(landmark_x,0)+min(gameimg.shape[1]-landmark_x,200)]=object[:min(gameimg.shape[0]-landmark_y,200),:min(gameimg.shape[1]-landmark_x,200)]            #image[landmark_x]
+            i=0
+            for pos in item_pos:
+                if pos[1]<landmark_x+100 and pos[1]+item_size>landmark_x and pos[0]<landmark_y+100 and pos[0]+item_size>landmark_y:
+                    
+                    score=score+100
+                    item_pos[i]=(random.randint(0,600),random.randint(0,1160))
+                i=i+1
+                    
 
+        if index == 20:  # 左手2(先端)
+            landmark_x=landmark_x-100
+            landmark_y=landmark_y-100
+            gameimg[max(landmark_y,0):max(landmark_y,0)+min(gameimg.shape[0]-landmark_y,200),max(landmark_x,0):max(landmark_x,0)+min(gameimg.shape[1]-landmark_x,200)]=object[:min(gameimg.shape[0]-landmark_y,200),:min(gameimg.shape[1]-landmark_x,200)]            #image[landmark_x]
+            i=0
+            for pos in item_pos:
+                if pos[1]<landmark_x+100 and pos[1]+item_size>landmark_x and pos[0]<landmark_y+100 and pos[0]+item_size>landmark_y:
+                    
+                    score=score+100
+                    item_pos[i]=(random.randint(0,600),random.randint(0,1160))
+                i=i+1
+        
         # if not upper_body_only:
         if True:
             cv2.putText(image, "z:" + str(round(landmark_z, 3)),
@@ -263,9 +355,10 @@ def draw_landmarks(
                     0] > visibility_th:
                 cv2.line(image, landmark_point[30][1], landmark_point[32][1],
                         (0, 255, 0), 2)
-    return image
+    return gameimg
 
 
+    
 def plot_world_landmarks(
     plt,
     ax,
@@ -366,12 +459,12 @@ def draw_bounding_rect(use_brect, image, brect):
                      (0, 255, 0), 2)
 
     return image
-
+handDetector = HandDetector(min_detection_confidence=0.7)
 
 def main():
-    print("capture")
-    #cap = cv2.VideoCapture(1)
-    cap = cv2.VideoCapture(1,cv2.CAP_DSHOW)
+    print("capturing...")
+    cap = cv2.VideoCapture(0)
+    #cap = cv2.VideoCapture(1,cv2.CAP_DSHOW)
     print("captured")
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1140)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
@@ -383,7 +476,10 @@ def main():
         min_detection_confidence=0.5,
         min_tracking_confidence=0.5,
     )
-
+    global score
+    score=0
+    lastimg=back=cv2.imread('images/back.png')
+    lastimg=cv2.resize(lastimg, dsize=(1280,720))
     
 
 
@@ -397,29 +493,35 @@ def main():
             print("notcupture")
             break
         image = cv2.flip(image, 1)  # ミラー表示
+        img2 = handDetector.findHandLandMarks(image=image, draw=True)
         debug_image = copy.deepcopy(image)
         ca = copy.deepcopy(image)
-        # 検出実施 #############################################################
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        results = pose.process(image)
-        if results.pose_landmarks is not None:
-            # 外接矩形の計算
-            brect = calc_bounding_rect(debug_image, results.pose_landmarks)
-            # 描画
-            debug_image = draw_landmarks(
-                debug_image,
-                results.pose_landmarks,
-                # upper_body_only,
-            )
-            debug_image = draw_bounding_rect(False, debug_image, brect)
-
-
+        # # 検出実施 #############################################################
+        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        # results = pose.process(image)
+        # if results.pose_landmarks is not None:
+        #     # 外接矩形の計算
+        #     brect = calc_bounding_rect(debug_image, results.pose_landmarks)
+        #     # 描画
+        #     debug_image = draw_landmarks(
+        #         debug_image,
+        #         results.pose_landmarks,
+        #         # upper_body_only,
+        #     )
+        #     debug_image = draw_bounding_rect(False, debug_image, brect)
+        # else:
+        #     debug_image=copy.deepcopy(lastimg)
+            
         
-
         
-        cv2.imshow('camera', ca)
-        cv2.imshow('MediaPipe Pose Demo', debug_image)
-
+        cv2.putText(img2,'score:',(5,50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), thickness=2)
+        cv2.putText(img2,str(score),(100,50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), thickness=2)
+        #cv2.imshow('camera', ca)
+        #cv2.imshow('MediaPipe Pose Demo', debug_image)
+        cv2.imshow("result", img2)
+        cv2.moveWindow("result",200,200)
+        cv2.setWindowProperty("result", cv2.WND_PROP_TOPMOST, 1)    
+        lastimg=debug_image
 
         key = cv2.waitKey(1)
         if key == 27:  # ESC

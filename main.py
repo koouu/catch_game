@@ -5,6 +5,7 @@ import mediapipe as mp
 import random
 from PIL import Image
 import math
+from pygame import mixer
 
 koro=cv2.imread('images/koro1.jpg')
 koro2 = cv2.resize(koro, dsize=(200,200))
@@ -22,7 +23,8 @@ ball=cv2.imread('images/ball.png')
 ball=cv2.resize(ball, dsize=(item_size,item_size))
 
 global score
-
+mixer.init()   
+mixer.music.load('musics/Motion-Grab01-1.mp3')    
 Hands = mp.solutions.hands
 Draw = mp.solutions.drawing_utils
 
@@ -53,7 +55,7 @@ class HandDetector:
         results = self.hands.process(image)
         
         image
-        back=cv2.imread('images/back.png')
+        back=cv2.imread('images/bg_natural_mori.jpg')
         back=cv2.resize(back, dsize=(1280,720))
         #kata
         #gameimg=copy.deepcopy(back)
@@ -124,7 +126,7 @@ class HandDetector:
                     i=0
                     for pos in item_pos:
                         if pos[1]<landmark_x+100 and pos[1]+item_size>landmark_x and pos[0]<landmark_y+100 and pos[0]+item_size>landmark_y:
-                            
+                            mixer.music.play(1)
                             score=score+100
                             item_pos[i]=(random.randint(0,600),random.randint(0,1160))
                         i=i+1
@@ -493,25 +495,8 @@ def main():
             print("notcupture")
             break
         image = cv2.flip(image, 1)  # ミラー表示
-        img2 = handDetector.findHandLandMarks(image=image, draw=True)
+        img2 = handDetector.findHandLandMarks(image=image, draw=False)
         debug_image = copy.deepcopy(image)
-        ca = copy.deepcopy(image)
-        # # 検出実施 #############################################################
-        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        # results = pose.process(image)
-        # if results.pose_landmarks is not None:
-        #     # 外接矩形の計算
-        #     brect = calc_bounding_rect(debug_image, results.pose_landmarks)
-        #     # 描画
-        #     debug_image = draw_landmarks(
-        #         debug_image,
-        #         results.pose_landmarks,
-        #         # upper_body_only,
-        #     )
-        #     debug_image = draw_bounding_rect(False, debug_image, brect)
-        # else:
-        #     debug_image=copy.deepcopy(lastimg)
-            
         
         
         cv2.putText(img2,'score:',(5,50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), thickness=2)
@@ -519,8 +504,8 @@ def main():
         #cv2.imshow('camera', ca)
         #cv2.imshow('MediaPipe Pose Demo', debug_image)
         cv2.imshow("result", img2)
-        cv2.moveWindow("result",200,200)
-        cv2.setWindowProperty("result", cv2.WND_PROP_TOPMOST, 1)    
+        #cv2.moveWindow("result",200,200)
+        #cv2.setWindowProperty("result", cv2.WND_PROP_TOPMOST, 1)    
         lastimg=debug_image
 
         key = cv2.waitKey(1)

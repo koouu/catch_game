@@ -11,17 +11,19 @@ koro=cv2.imread('images/koro1.jpg')
 koro2 = cv2.resize(koro, dsize=(200,200))
 object_size=120
 
-rock=cv2.imread('images/rock1.png')
+rock=cv2.imread('images/rock2.png')
 rock=cv2.resize(rock, dsize=(object_size,object_size))
 
-paper=cv2.imread('images/paper1.png')
+paper=cv2.imread('images/paper2.png')
 paper=cv2.resize(paper, dsize=(object_size,object_size))
 
 item_pos=[(100,100),(200,800),(400,400),(600,100),(400,1000)]
 item_size=100
 ball=cv2.imread('images/ball.png')
 ball=cv2.resize(ball, dsize=(item_size,item_size))
-
+text_size=(32*13,32)
+text_score=cv2.imread('images/text.png')
+text_score=cv2.resize(text_score, dsize=text_size)
 global score
 mixer.init()   
 mixer.music.load('musics/Motion-Grab01-1.mp3')    
@@ -127,7 +129,7 @@ class HandDetector:
                     for pos in item_pos:
                         if pos[1]<landmark_x+100 and pos[1]+item_size>landmark_x and pos[0]<landmark_y+100 and pos[0]+item_size>landmark_y:
                             mixer.music.play(1)
-                            score=score+100
+                            score=score+1
                             item_pos[i]=(random.randint(0,600),random.randint(0,1160))
                         i=i+1
                 
@@ -498,9 +500,12 @@ def main():
         img2 = handDetector.findHandLandMarks(image=image, draw=False)
         debug_image = copy.deepcopy(image)
         
-        
-        cv2.putText(img2,'score:',(5,50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), thickness=2)
-        cv2.putText(img2,str(score),(100,50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), thickness=2)
+        cv2.namedWindow('result', cv2.WINDOW_NORMAL)
+        cv2.setWindowProperty('result', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+        #cv2.putText(img2,'score:',(5,50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), thickness=2)
+        putSprite_mask(img2,text_score,(5,50))
+
+        cv2.putText(img2,str(score),(69+text_size[0],30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), thickness=2)
         #cv2.imshow('camera', ca)
         #cv2.imshow('MediaPipe Pose Demo', debug_image)
         cv2.imshow("result", img2)
